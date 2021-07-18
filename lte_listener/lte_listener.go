@@ -5,6 +5,7 @@ import (
 	"github.com/farisey-ru/gotest/regexp_ext"
 	"io/ioutil"
 	"os"
+	"path"
 	"strconv"
 )
 
@@ -12,11 +13,15 @@ type LteMsg struct {
 	ev           nl.NlKobjEv
 	numEndpoints uint   // .../bNumEndpoints
 	sysfs_iface  string // .../interface
+	device       string // "ttyUSB3"
 }
+
+type devmap map[string]string
 
 type Lte struct {
 	sk         nl.NlKobjSock
 	re_drivers regexp_ext.RegexpArray
+	devs       devmap
 }
 
 func (msg *LteMsg) Event() uint {
@@ -35,6 +40,10 @@ func (msg *LteMsg) Interface() string {
 	return msg.sysfs_iface
 }
 
+func (msg *LteMsg) Device() string {
+	return msg.device
+}
+
 func Subscribe(rcvbuf int, expr_path []string, expr_driver []string) (*Lte, error) {
 	re, err := regexp_ext.CompileExpr(expr_driver)
 	if err != nil {
@@ -49,6 +58,7 @@ func Subscribe(rcvbuf int, expr_path []string, expr_driver []string) (*Lte, erro
 	ret := &Lte{
 		sk:         *sk,
 		re_drivers: *re,
+		devs:       make(devmap),
 	}
 	return ret, nil
 }
@@ -86,7 +96,12 @@ func (lte *Lte) Listen() <-chan LteMsg {
 
 			switch ev.Event() {
 			case nl.NLKEV_UNBIND:
-				//add nothing to the msg
+				if len(lte.devs[ev.Path()]) == 0 {
+					// ignore the detaching of unknown
+					continue
+				}
+				msg.device = lte.devs[ev.Path()]
+				//add nothing else to the msg
 
 			case nl.NLKEV_BIND:
 				if !lte.MatchDriver(ev.Driver) {
@@ -110,6 +125,9 @@ func (lte *Lte) Listen() <-chan LteMsg {
 					dat, _ := ioutil.ReadFile(fn)
 					msg.sysfs_iface = string(dat)
 				}
+
+				_, msg.device = path.Split(ev.Path())
+				lte.devs[ev.Path()] = msg.device
 
 				// add any stuff you need here
 
