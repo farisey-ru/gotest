@@ -16,6 +16,9 @@ type LteMsg struct {
 	device       string // "ttyUSB3"
 }
 
+// do not forget the final slash
+const DevMountPoint string = "/dev/"
+
 type devmap map[string]string
 
 type Lte struct {
@@ -40,8 +43,9 @@ func (msg *LteMsg) Interface() string {
 	return msg.sysfs_iface
 }
 
+// -> "/dev/ttyUSB3"
 func (msg *LteMsg) Device() string {
-	return msg.device
+	return DevMountPoint + msg.device
 }
 
 func Subscribe(rcvbuf int, expr_path []string, expr_driver []string) (*Lte, error) {
@@ -128,6 +132,10 @@ func (lte *Lte) Listen() <-chan LteMsg {
 
 				_, msg.device = path.Split(ev.Path())
 				lte.devs[ev.Path()] = msg.device
+				if _, err := os.Stat(msg.Device()); err != nil {
+					// node not exists
+					continue
+				}
 
 				// add any stuff you need here
 
