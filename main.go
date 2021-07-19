@@ -5,6 +5,7 @@ import (
 	nl "github.com/farisey-ru/gotest/nl_kobj"
 	"log"
 	"os"
+	"os/exec"
 )
 
 func main() {
@@ -18,8 +19,9 @@ func main() {
 	}
 
 	drivers := []string{
-		"^ftdi_sio$",
+		// set your drivers
 		"^option",
+		//"^ftdi_sio$",
 		//"^usb-storage$",
 	}
 
@@ -40,9 +42,28 @@ func main() {
 			log.Printf("msg: %+v\n", msg)
 			switch msg.Event() {
 			case nl.NLKEV_UNBIND:
-				log.Println("Unbind, TODO", msg.Device())
+				log.Println("What should I do on Unbind of", msg.Device(), "?")
 			case nl.NLKEV_BIND:
-				log.Println("Bind, TODO", msg.Device())
+				/* Not debugged since I do not have
+				 * either an OpenWrt-based device or
+				 * free time to prepare that.
+				 */
+				dev := msg.Device()
+				out, err := exec.Command("uqmi", "-d", dev,
+					"--get-signal-info").Output()
+				if err != nil {
+					log.Printf("%s get-signal error: %v\n", dev, err)
+					continue
+				}
+				log.Println("signal:", out)
+
+				cmd := exec.Command("uqmi", "-d", dev,
+					"--start-network", "internet",
+					"--autoconnect")
+				err = cmd.Run()
+				if err != nil {
+					log.Printf("Starting %s failed: %v\n", dev, err)
+				}
 			default:
 				panic("Unknown msg type")
 			}
