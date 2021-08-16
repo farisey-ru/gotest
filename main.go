@@ -8,6 +8,16 @@ import (
 	"os/exec"
 )
 
+/* Q: Why are there so many goroutines here?
+ * A: Not so many.
+ *    (a). Lte.Listen() - the goroutine which listens, filters,
+ *         prepares ans sends the LTE device events to its message
+ *         channel. Uses blocking syscalls!
+ *    (b). The goroutine in main just below to get the message from (a)
+ *         and invoke the uqmi tool.
+ *         The main thread may do any other works while (b), e.g.
+ *         implement a control interface.
+ */
 func main() {
 	patterns := []string{
 		"^/devices/platform/1e1e0000\\.xchi/usb1/1-2/1-2\\.[0-9a-fA-F]+/",
@@ -35,6 +45,10 @@ func main() {
 	in := lte.Listen()
 	//log.Printf("in: %T: %v\n", in, in)
 
+	/* Q: Why channel, and what other ways are there ?
+	 * A: I definitely know about sync.WaitGroup, but the go community
+	 *    highly recommends notify channels exactly.
+	 */
 	finished := make(chan bool) // avoid wait group
 	go func() {
 		// while 'in' is not closed

@@ -113,6 +113,44 @@ func three(arr *[3]uint, str string, base int) {
 }
 
 func (sk *NlKobjSock) Receive() (*NlKobjEv, error) {
+	/* Q: How could we stop this?
+	 * A: It loops until Close() is called.
+	 *    Then unix.Recvfrom returns an error.
+	 *
+	 * So the stop flow is:
+	 * main -> Lte.Close() -> NlKobjSock.Close() ->
+	 * unix.Recvfrom() returns an error breaking the loop ->
+	 * Lte returns from its loop and close the 'out' channel ->
+	 * main goroutine leaves 'for msg := range in'
+	 * and notifies to the 'finished' channel ->
+	 * main (which just invoked Lte.Close()) is informed that the
+	 * entire subtask has been finished.
+	 * main may exit.
+	 */
+
+	/* The main unsolved TODO.
+	 * When closing the unix socket (from another execution flow),
+	 * the routine stays blocked inside the unix.Recvfrom().
+	 * So the real exit from this Receive() will
+	 * be performed after the next event raised on the socket.
+	 * It may take a while.
+	 * I tried:
+	 *   1. Go context. No success. unix.Recvfrom() stays blocked.
+	 *   2. unix.Poll() before unix.Recvfrom(). The same shit, but
+	 *      the execution thread freezed in Poll() not Recvfrom().
+	 * Seems like this a purely kernel level issue. Or I just don't know
+	 * some Go Kung Fu to break a syscall softly.
+	 *
+	 * The only one way I see is a pair of _time-limited_
+	 * Poll + Recvfrom, e.g. Poll for 1 sec, no event => continue loop,
+	 * else => Recvfrom which will be definitely non-blocking.
+	 *
+	 * This decides the locking trouble but the program every second
+	 * will call Poll() which is 99,(9)% useless (returns "no event").
+	 * I hate overhead!
+	 *
+	 * All advices are welcome, of cource.
+	 */
 	for {
 		n, _, err := unix.Recvfrom(sk.fd, sk.buf, 0)
 		if err != nil {

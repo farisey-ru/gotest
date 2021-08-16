@@ -83,6 +83,9 @@ func (lte *Lte) MatchDriver(s string) bool {
 func (lte *Lte) Listen() <-chan LteMsg {
 	out := make(chan LteMsg, 4)
 
+	/* Q: How could we stop this?
+	 * A: just below, near 'return'
+	 */
 	go func() {
 		defer func() {
 			close(out)
@@ -91,6 +94,9 @@ func (lte *Lte) Listen() <-chan LteMsg {
 		for {
 			ev, err := lte.sk.Receive()
 			if err != nil {
+				/* exit point. See the detailed
+				 * comment in NlKobjSock.Receive()
+				 */
 				return
 			}
 
